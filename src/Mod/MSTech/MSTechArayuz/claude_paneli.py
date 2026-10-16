@@ -61,7 +61,8 @@ def _ant_yolu():
 
 def _claude_yolu():
     """Kurulu Claude Code (aboneliğinle giriş yapılmış resmî CLI)."""
-    adaylar = [shutil.which("claude")]
+    adaylar = [shutil.which("claude"), os.path.expanduser("~/.claude/local/claude")]
+    adaylar += glob.glob(os.path.expanduser("~/.local/share/claude/versions/*"))
     adaylar += glob.glob(os.path.expanduser(
         "~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude"))
     adaylar = [a for a in adaylar if a and os.path.isfile(a) and os.access(a, os.X_OK)]
@@ -69,10 +70,8 @@ def _claude_yolu():
 
 
 def _motor():
-    """API anahtarı girildiyse API, yoksa kurulu Claude Code (abonelik) kullanılır."""
-    if not _api_anahtari() and _claude_yolu():
-        return "claude_code"
-    return "api"
+    """API anahtarı girildiyse API, yoksa Claude Code (abonelik; kurulu değilse kurulum önerilir)."""
+    return "api" if _api_anahtari() else "claude_code"
 
 
 CC_ARACLARI = "mcp__mstech__freecad_python,mcp__mstech__belge_ozeti,mcp__mstech__goruntu_al"
@@ -309,12 +308,12 @@ class ClaudePaneli(QtWidgets.QWidget):
             self._giris_durumunu_goster()
 
     def _giris_durumunu_goster(self):
-        self._giris_dugmesi.setVisible(_motor() == "api")
         self._model_secici.setVisible(_motor() == "claude_code")
         if _motor() == "claude_code":
-            self._giris_durumu.setText("✓ Claude Code (aboneliğin)")
-            self._giris_durumu.setToolTip(_claude_yolu())
-        elif _api_anahtari():
+            self._cc_durumu_denetle()
+            return
+        self._giris_dugmesi.setVisible(True)
+        if _api_anahtari():
             self._giris_durumu.setText("API anahtarı ile")
         elif _giris_yapildi_mi():
             self._giris_durumu.setText("✓ Giriş yapıldı")
@@ -323,7 +322,73 @@ class ClaudePaneli(QtWidgets.QWidget):
             self._giris_durumu.setText("Giriş yapılmadı")
             self._giris_dugmesi.setText("Giriş yap")
 
+    # --- Claude Code: kurulum ve giriş ---------------------------------------------------
+
+    def _cc_durumu_denetle(self):
+        yol = _claude_yolu()
+        self._cc_giris = None
+        if not yol:
+            self._giris_durumu.setText("Claude Code kurulu değil")
+            self._giris_dugmesi.setText("Claude Code'u kur")
+            self._giris_dugmesi.setVisible(True)
+            return
+        self._giris_durumu.setText("Claude hesabı denetleniyor…")
+        self._giris_dugmesi.setVisible(False)
+        surec = QtCore.QProcess(self)
+        ortam = QtCore.QProcessEnvironment.systemEnvironment()
+        ortam.remove("ANTHROPIC_API_KEY")
+        surec.setProcessEnvironment(ortam)
+        surec.finished.connect(lambda *_: self._cc_durum_geldi(surec))
+        surec.start(yol, ["auth", "status", "--json"])
+
+    def _cc_durum_geldi(self, surec):
+        try:
+            durum = json.loads(bytes(surec.readAllStandardOutput()).decode("utf-8", "replace"))
+        except ValueError:
+            durum = {}
+        self._cc_giris = bool(durum.get("loggedIn"))
+        if self._cc_giris:
+            plan = durum.get("subscriptionType") or durum.get("authMethod") or ""
+            self._giris_durumu.setText(f"✓ {durum.get('email', 'Claude')} ({plan.capitalize()})")
+            self._giris_dugmesi.setVisible(False)
+        else:
+            self._giris_durumu.setText("Claude'a giriş yapılmadı")
+            self._giris_dugmesi.setText("Claude ile giriş yap")
+            self._giris_dugmesi.setVisible(True)
+            self._ekle_html("<p>Claude'u kullanmak için sağ üstteki <b>Claude ile giriş yap</b> "
+                            "düğmesine bas; tarayıcıda Claude hesabınla (Pro/Max) giriş yap.</p>")
+
+    def _cc_giris_baslat(self):
+        yol = _claude_yolu()
+        if yol:
+            self._ekle_html("<p style='color:#5B6472'>Tarayıcıda Claude giriş sayfası açılıyor… "
+                            "Giriş yapıp izin ver, sonra buraya dön.</p>")
+            program, argumanlar = yol, ["auth", "login", "--claudeai"]
+        else:
+            self._ekle_html("<p style='color:#5B6472'>Claude Code kuruluyor (resmî kurulum betiği)…</p>")
+            program, argumanlar = "bash", ["-c", "curl -fsSL https://claude.ai/install.sh | bash"]
+        surec = QtCore.QProcess(self)
+        ortam = QtCore.QProcessEnvironment.systemEnvironment()
+        ortam.remove("ANTHROPIC_API_KEY")
+        surec.setProcessEnvironment(ortam)
+        surec.setProcessChannelMode(QtCore.QProcess.MergedChannels)
+        surec.finished.connect(lambda kod, _d: self._cc_islem_bitti(surec, kod))
+        self._giris_sureci = surec
+        self._giris_dugmesi.setEnabled(False)
+        surec.start(program, argumanlar)
+
+    def _cc_islem_bitti(self, surec, kod):
+        self._giris_sureci = None
+        self._giris_dugmesi.setEnabled(True)
+        if kod != 0:
+            cikti = bytes(surec.readAll()).decode("utf-8", "replace").strip()
+            self._ekle_html(f"<p style='color:#C62828'>İşlem tamamlanamadı: {html.escape(cikti[-300:])}</p>")
+        self._cc_durumu_denetle()
+
     def giris_yap(self):
+        if _motor() == "claude_code":
+            self._cc_giris_baslat()
+            return
         ant = _ant_yolu()
         if not ant:
             self._ekle_html(
@@ -358,6 +423,10 @@ class ClaudePaneli(QtWidgets.QWidget):
         if not metin or self._calisiyor:
             return
         if _motor() == "claude_code":
+            if not _claude_yolu() or getattr(self, "_cc_giris", None) is False:
+                self._ekle_html("<p style='color:#B85C00'>Önce sağ üstteki düğmeyle Claude Code'u "
+                                "kur / Claude hesabınla giriş yap.</p>")
+                return
             self._giris.clear()
             self._kullanici_mesaji(metin)
             self._cc_gonder(metin)
