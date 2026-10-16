@@ -1,0 +1,131 @@
+# MSTech Ai-CAD sürüm paketleri.
+# "v*" etiketi gönderildiğinde (ör. git tag v0.1.0 && git push origin v0.1.0) ya da elle başlatıldığında
+# Windows (.exe kurulum + .7z), macOS (Intel ve Apple Silicon .dmg), Linux (AppImage) üretir;
+# Linux AppImage'dan .deb, .rpm ve Arch paketi çıkarır ve hepsini GitHub sürümüne yükler.
+name: MSTech Sürüm
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      etiket:
+        description: "Sürüm etiketi (ör. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  hazirla:
+    runs-on: ubuntu-latest
+    outputs:
+      etiket: ${{ steps.etiket.outputs.etiket }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Sürümü oluştur
+        id: etiket
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ETIKET: ${{ github.event.inputs.etiket || github.ref_name }}
+        run: |
+          gh release create "$ETIKET" --target "${{ github.sha }}" --title "MSTech Ai-CAD $ETIKET" \
+            --notes "MSTech Ai-CAD $ETIKET — yapay zekâ destekli 3B CAD (FreeCAD tabanlı)." \
+            || gh release view "$ETIKET" > /dev/null
+          echo "etiket=$ETIKET" >> "$GITHUB_OUTPUT"
+
+  derle:
+    needs: hazirla
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-64, os: ubuntu-22.04 }
+          - { target: win-64, os: windows-2022 }
+          - { target: osx-64, os: macos-15-intel, deploy_target: "10.13" }
+          - { target: osx-arm64, os: macos-latest, deploy_target: "11.0" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Disk alanı aç
+        if: runner.os == 'Linux'
+        uses: AdityaGarg8/remove-unwanted-software@90e01b21170618765a73370fcc3abbd1684a7793 # v5
+        with:
+          remove-android: 'true'
+          remove-cached-tools: 'true'
+
+      - name: Windows önbellek yolu
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo 'PIXI_CACHE_DIR=D:\rattler' >> "$GITHUB_ENV"
+          echo 'RATTLER_CACHE_DIR=D:\rattler' >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+        with:
+          pixi-version: v0.81.0
+          cache: false
+          locked: true
+
+      - name: Derle
+        shell: bash
+        env:
+          TARGET_PLATFORM: ${{ matrix.target }}
+          BUILD_TAG: ${{ needs.hazirla.outputs.etiket }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ runner.os }}" == "macOS" ]]; then export MACOS_DEPLOYMENT_TARGET="${{ matrix.deploy_target }}"; fi
+          python3 package/scripts/write_version_info.py ../freecad_version.txt
+          pixi run --locked "bash package/bundle/build.sh"
+
+      - name: Paketle ve yükle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_PLATFORM: ${{ matrix.target }}
+          BUILD_TAG: ${{ needs.hazirla.outputs.etiket }}
+          MAKE_INSTALLER: "true"
+          UPLOAD_RELEASE: "true"
+          MACOS_SIGN_RELEASE: "0"
+          WINDOWS_SIGN_RELEASE: "0"
+          MACOS_DEPLOYMENT_TARGET: ${{ matrix.deploy_target }}
+        run: |
+          set -euo pipefail
+          case "${RUNNER_OS}" in
+            Windows) OSFOLDER=windows ;;
+            macOS)   OSFOLDER=osx ;;
+            Linux)   OSFOLDER=linux ;;
+          esac
+          cd package/bundle
+          pixi run --locked bash -c "cd $OSFOLDER && bash create_bundle.sh"
+
+  linux_paketleri:
+    needs: [hazirla, derle]
+    runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ETIKET: ${{ needs.hazirla.outputs.etiket }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: package/mstech
+      - name: AppImage'ı indir ve aç
+        run: |
+          gh release download "$ETIKET" --pattern "MSTech-AiCAD_*-Linux-x86_64.AppImage" --output mstech.AppImage
+          chmod +x mstech.AppImage
+          ./mstech.AppImage --appimage-extract > /dev/null
+      - name: nfpm kur
+        run: |
+          curl -fsSL -o nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_amd64.deb
+          sudo dpkg -i nfpm.deb
+      - name: .deb / .rpm / Arch paketleri
+        run: |
+          export PAKET_SURUM="${ETIKET#v}" PAKET_MIMARI=amd64
+          for tur in deb rpm archlinux; do
+            nfpm pkg -f package/mstech/nfpm.yaml -p "$tur" -t .
+          done
+          ls -la *.deb *.rpm *.pkg.tar.zst
+          gh release upload --clobber "$ETIKET" *.deb *.rpm *.pkg.tar.zst

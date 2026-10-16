@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=MSTech Ai-CAD
+GenericName=3D CAD
+GenericName[tr]=3B CAD
+Comment=AI-assisted 3D design
+Comment[tr]=Yapay zekâ destekli 3B tasarım
+Exec=mstech-aicad %F
+Icon=org.mstech.AiCAD
+Terminal=false
+StartupNotify=true
+Categories=Graphics;Science;Engineering;
+MimeType=application/x-extension-fcstd;
+Keywords=CAD;3D;Part;Sketch;MSTech;

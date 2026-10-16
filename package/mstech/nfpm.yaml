@@ -1,0 +1,20 @@
+# Linux paketleri (.deb, .rpm, Arch) — CI'da açılmış AppImage'dan üretilir: nfpm pkg -p deb|rpm|archlinux
+name: mstech-aicad
+arch: ${PAKET_MIMARI}
+version: ${PAKET_SURUM}
+maintainer: MSTech <mzsosking@gmail.com>
+description: MSTech Ai-CAD - yapay zekâ destekli 3B parametrik CAD (FreeCAD tabanlı)
+homepage: https://github.com/${GITHUB_REPOSITORY}
+license: LGPL-2.1-or-later
+contents:
+  - src: ./squashfs-root
+    dst: /opt/mstech-aicad
+    type: tree
+  - src: ./package/mstech/mstech-aicad
+    dst: /usr/bin/mstech-aicad
+    file_info:
+      mode: 0755
+  - src: ./package/mstech/org.mstech.AiCAD.desktop
+    dst: /usr/share/applications/org.mstech.AiCAD.desktop
+  - src: ./package/mstech/org.mstech.AiCAD.png
+    dst: /usr/share/icons/hicolor/256x256/apps/org.mstech.AiCAD.png

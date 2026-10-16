@@ -96,7 +96,7 @@ rm -rf ${conda_env}/x86_64-conda-linux-gnu
 find . -name "*.h" -type f -delete
 find . -name "*.cmake" -type f -delete
 
-version_name="FreeCAD_${BUILD_TAG}-Linux-$(uname -m)"
+version_name="MSTech-AiCAD_${BUILD_TAG}-Linux-$(uname -m)"
 
 echo -e "\################"
 echo -e "version_name:  ${version_name}"

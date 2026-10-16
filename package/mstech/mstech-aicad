@@ -1,0 +1,3 @@
+#!/bin/sh
+# MSTech Ai-CAD başlatıcı (deb/rpm/arch paketleri): açılmış AppImage içeriğini çalıştırır.
+exec /opt/mstech-aicad/AppRun "$@"

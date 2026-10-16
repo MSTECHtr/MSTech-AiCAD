@@ -62,7 +62,7 @@ set +x
 echo '[Paths]' >> ${copy_dir}/bin/qt6.conf
 echo 'Prefix = ../lib/qt6' >> ${copy_dir}/bin/qt6.conf
 
-version_name="FreeCAD_${BUILD_TAG}-Windows-$(uname -m)"
+version_name="MSTech-AiCAD_${BUILD_TAG}-Windows-$(uname -m)"
 
 echo -e "################"
 echo -e "version_name:  ${version_name}"
