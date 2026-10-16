@@ -181,14 +181,10 @@ class ClaudePaneli(QtWidgets.QWidget):
         anahtar.setToolTip("Hesap girişi yerine API anahtarı kullanmak için")
         anahtar.clicked.connect(self.anahtar_sor)
         self._giris_durumu = QtWidgets.QLabel()
-        self._model_secici = QtWidgets.QComboBox()
-        self._model_secici.setToolTip("Claude modeli (Sonnet ve Haiku daha az kullanım limiti harcar)")
-        for etiket, deger in (("Varsayılan model", ""), ("Opus", "opus"), ("Sonnet", "sonnet"), ("Haiku", "haiku")):
-            self._model_secici.addItem(etiket, deger)
-        secili = self._model_secici.findData(_param().GetString("ClaudeCodeModel", ""))
-        self._model_secici.setCurrentIndex(max(0, secili))
-        self._model_secici.currentIndexChanged.connect(
-            lambda _: _param().SetString("ClaudeCodeModel", self._model_secici.currentData()))
+        self._cikis_dugmesi = QtWidgets.QToolButton()
+        self._cikis_dugmesi.setText("Çıkış yap")
+        self._cikis_dugmesi.setVisible(False)
+        self._cikis_dugmesi.clicked.connect(self.cikis_yap)
         self._giris_sureci = None
         self._cc_surec = None
         self._cc_oturum = None
@@ -204,8 +200,8 @@ class ClaudePaneli(QtWidgets.QWidget):
         ust.addWidget(yeni)
         ust.addStretch(1)
         ust.addWidget(self._giris_durumu)
-        ust.addWidget(self._model_secici)
         ust.addWidget(self._giris_dugmesi)
+        ust.addWidget(self._cikis_dugmesi)
         ust.addWidget(anahtar)
         alt = QtWidgets.QHBoxLayout()
         alt.addWidget(self._onay)
@@ -308,7 +304,6 @@ class ClaudePaneli(QtWidgets.QWidget):
             self._giris_durumunu_goster()
 
     def _giris_durumunu_goster(self):
-        self._model_secici.setVisible(_motor() == "claude_code")
         if _motor() == "claude_code":
             self._cc_durumu_denetle()
             return
@@ -351,7 +346,9 @@ class ClaudePaneli(QtWidgets.QWidget):
             plan = durum.get("subscriptionType") or durum.get("authMethod") or ""
             self._giris_durumu.setText(f"✓ {durum.get('email', 'Claude')} ({plan.capitalize()})")
             self._giris_dugmesi.setVisible(False)
+            self._cikis_dugmesi.setVisible(True)
         else:
+            self._cikis_dugmesi.setVisible(False)
             self._giris_durumu.setText("Claude'a giriş yapılmadı")
             self._giris_dugmesi.setText("Claude ile giriş yap")
             self._giris_dugmesi.setVisible(True)
@@ -384,6 +381,21 @@ class ClaudePaneli(QtWidgets.QWidget):
             cikti = bytes(surec.readAll()).decode("utf-8", "replace").strip()
             self._ekle_html(f"<p style='color:#C62828'>İşlem tamamlanamadı: {html.escape(cikti[-300:])}</p>")
         self._cc_durumu_denetle()
+
+    def cikis_yap(self):
+        yol = _claude_yolu()
+        if not yol or self._calisiyor:
+            return
+        if QtWidgets.QMessageBox.question(
+            self, "Çıkış yap",
+            "Claude hesabından çıkış yapılsın mı?\n(Bu bilgisayardaki Claude Code oturumu da kapanır.)",
+        ) != QtWidgets.QMessageBox.Yes:
+            return
+        surec = QtCore.QProcess(self)
+        surec.finished.connect(lambda kod, _d: self._cc_islem_bitti(surec, kod))
+        self._giris_sureci = surec
+        surec.start(yol, ["auth", "logout"])
+        self._cc_oturum = None
 
     def giris_yap(self):
         if _motor() == "claude_code":
