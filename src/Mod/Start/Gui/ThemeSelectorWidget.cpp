@@ -113,8 +113,8 @@ void ThemeSelectorWidget::setupButtons(QBoxLayout* layout)
     }
     std::map<Theme, QString> themeMap {
         {Theme::Classic, tr("FreeCAD Classic")},
-        {Theme::Dark, tr("FreeCAD Dark")},
-        {Theme::Light, tr("FreeCAD Light")}
+        {Theme::Dark, tr("MSTech Dark")},
+        {Theme::Light, tr("MSTech Light")}
     };
     std::map<Theme, QIcon> iconMap {
         {Theme::Classic, QIcon(QLatin1String(":/thumbnails/Theme_thumbnail_classic.png"))},
@@ -125,6 +125,8 @@ void ThemeSelectorWidget::setupButtons(QBoxLayout* layout)
         "User parameter:BaseApp/Preferences/MainWindow"
     );
     auto styleSheetName = QString::fromStdString(hGrp->GetASCII("StyleSheet"));
+    // Light and dark themes share one parametrized stylesheet; the theme name tells them apart
+    auto themeName = QString::fromStdString(hGrp->GetASCII("Theme"));
     for (const auto& theme : themeMap) {
         auto button = gsl::owner<QToolButton*>(new QToolButton());
 
@@ -142,14 +144,14 @@ void ThemeSelectorWidget::setupButtons(QBoxLayout* layout)
             button->setChecked(true);
         }
         else if (
-            theme.first == Theme::Light
-            && styleSheetName.contains(QLatin1String("FreeCAD Light"), Qt::CaseSensitivity::CaseInsensitive)
+            theme.first == Theme::Light && !styleSheetName.isEmpty()
+            && themeName.contains(QLatin1String("Light"), Qt::CaseSensitivity::CaseInsensitive)
         ) {
             button->setChecked(true);
         }
         else if (
-            theme.first == Theme::Dark
-            && styleSheetName.contains(QLatin1String("FreeCAD Dark"), Qt::CaseSensitivity::CaseInsensitive)
+            theme.first == Theme::Dark && !styleSheetName.isEmpty()
+            && themeName.contains(QLatin1String("Dark"), Qt::CaseSensitivity::CaseInsensitive)
         ) {
             button->setChecked(true);
         }
@@ -218,10 +220,10 @@ void ThemeSelectorWidget::themeChanged(Theme newTheme)
             prefPackManager->apply("FreeCAD Classic");
             break;
         case Theme::Dark:
-            prefPackManager->apply("FreeCAD Dark");
+            prefPackManager->apply("MSTech Dark");
             break;
         case Theme::Light:
-            prefPackManager->apply("FreeCAD Light");
+            prefPackManager->apply("MSTech Light");
             break;
     }
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
@@ -258,7 +260,7 @@ void ThemeSelectorWidget::retranslateUi()
     else {
         _descriptionLabel->hide();
     }
-    _buttons[static_cast<int>(Theme::Dark)]->setText(tr("FreeCAD Dark", "Visual theme name"));
-    _buttons[static_cast<int>(Theme::Light)]->setText(tr("FreeCAD Light", "Visual theme name"));
+    _buttons[static_cast<int>(Theme::Dark)]->setText(tr("MSTech Dark", "Visual theme name"));
+    _buttons[static_cast<int>(Theme::Light)]->setText(tr("MSTech Light", "Visual theme name"));
     _buttons[static_cast<int>(Theme::Classic)]->setText(tr("FreeCAD Classic", "Visual theme name"));
 }

@@ -3352,8 +3352,10 @@ const char* Application::getUserParameterTemplatePath()
         }
         const QFileInfo fi(path);
         if (fi.exists()) {
-            const char* templatePath = path.toUtf8().constData();
-            return templatePath;
+            // keep the string alive after returning: toUtf8() yields a temporary
+            static std::string templatePath;
+            templatePath = path.toStdString();
+            return templatePath.c_str();
         }
     }
     return nullptr;

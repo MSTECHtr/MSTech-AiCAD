@@ -174,6 +174,9 @@ QPixmap AboutDialog::aboutImage() const
         about_image.load(path);
 
         // Now try the icon paths
+        if (about_image.isNull() && about_path == "mstech_splash") {
+            about_image = Gui::BitmapFactory().pixmapFromSvg(":/icons/mstech_splash.svg", QSizeF(600.0, 300.0));
+        }
         if (about_image.isNull()) {
             about_image = Gui::BitmapFactory().pixmap(about_path.c_str());
         }

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MSTech Ai-CAD açılış ekranı ve Hakkında görseli (sürüm yazısını uygulama alt kısma çizer) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="450" viewBox="0 0 600 300">
+  <defs>
+    <linearGradient id="zemin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D2A5C"/>
+      <stop offset="1" stop-color="#06142E"/>
+    </linearGradient>
+    <linearGradient id="simge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E88E5"/>
+      <stop offset="1" stop-color="#0B3A86"/>
+    </linearGradient>
+    <linearGradient id="kivilcim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD54F"/>
+      <stop offset="1" stop-color="#FF9800"/>
+    </linearGradient>
+    <linearGradient id="serit" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1E88E5"/>
+      <stop offset="0.7" stop-color="#42A5F5"/>
+      <stop offset="1" stop-color="#FFB300"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="300" fill="url(#zemin)"/>
+
+  <!-- dekoratif izometrik tel kafes küp -->
+  <g fill="none" stroke="#5C8DD6" stroke-opacity="0.22" stroke-width="1.5">
+    <path d="M500 40 L590 92 L590 196 L500 248 L410 196 L410 92 Z M410 92 L500 144 L590 92 M500 144 L500 248"/>
+    <path d="M500 92 L545 118 L545 170 L500 196 L455 170 L455 118 Z M455 118 L500 144 L545 118"/>
+  </g>
+
+  <!-- simge -->
+  <g transform="translate(40 78) scale(0.5)">
+    <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#simge)"/>
+    <path d="M120 62 L188 101 L120 140 L52 101 Z" fill="#FFFFFF"/>
+    <path d="M52 101 L120 140 L120 218 L52 179 Z" fill="#FFFFFF" fill-opacity="0.78"/>
+    <path d="M120 140 L188 101 L188 179 L120 218 Z" fill="#FFFFFF" fill-opacity="0.52"/>
+    <path d="M120 62 L188 101 L188 179 L120 218 L52 179 L52 101 Z M52 101 L120 140 L188 101 M120 140 L120 218"
+          fill="none" stroke="#0B3A86" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M204 26 Q208 50 232 54 Q208 58 204 82 Q200 58 176 54 Q200 50 204 26 Z" fill="url(#kivilcim)"/>
+    <circle cx="226" cy="90" r="7" fill="#FFD54F"/>
+  </g>
+
+  <!-- yazı markası -->
+  <text x="186" y="142" font-family="sans-serif" font-size="46" font-weight="bold" fill="#FFFFFF">MSTech</text>
+  <text x="186" y="186" font-family="sans-serif" font-size="34" font-weight="bold" fill="#64B5F6">Ai-CAD</text>
+  <rect x="186" y="200" width="220" height="3" rx="1.5" fill="url(#serit)"/>
+  <text x="186" y="226" font-family="sans-serif" font-size="15" fill="#C9D6EA">Yapay zekâ destekli 3B tasarım</text>
+
+  <text x="580" y="26" text-anchor="end" font-family="sans-serif" font-size="11" fill="#7F93B5">FreeCAD tabanlıdır · LGPL-2.1</text>
+</svg>

@@ -59,8 +59,9 @@
 void PrintInitHelp();
 
 const auto sBanner = std::format(
-    "(C) 2001-{} FreeCAD contributors\n"
-    "FreeCAD is free and open-source software licensed under the terms of LGPL2+ license.\n\n",
+    "(C) {0} MSTech - FreeCAD tabanlıdır, (C) 2001-{0} FreeCAD contributors\n"
+    "MSTech Ai-CAD is based on FreeCAD, free and open-source software licensed under the terms "
+    "of LGPL2+ license.\n\n",
     Base::FCVersionInfo::CopyrightYear()
 );
 
@@ -203,23 +204,34 @@ int main(int argc, char** argv)
 #endif
 
     // Name and Version of the Application
-    App::Application::Config()["ExeName"] = "FreeCAD";
-    App::Application::Config()["ExeVendor"] = "FreeCAD";
+    // MSTech Ai-CAD branding. ExeName also names the user config/data directories
+    // (~/.config/MSTechAiCAD), so settings never clash with a regular FreeCAD install.
+    App::Application::Config()["ExeName"] = "MSTechAiCAD";
+    App::Application::Config()["ExeVendor"] = "MSTech";
+    App::Application::Config()["Application"] = "MSTech Ai-CAD";
     App::Application::Config()["AppDataSkipVendor"] = "true";
     App::Application::Config()["MaintainerUrl"] = "https://freecad.org";
 
     // set the banner (for logging and console)
     App::Application::Config()["CopyrightInfo"] = sBanner;
-    App::Application::Config()["AppIcon"] = "freecad";
-    App::Application::Config()["SplashScreen"] = "freecadsplash";
+    App::Application::Config()["AppIcon"] = "mstech-aicad";
+    App::Application::Config()["SplashScreen"] = "mstech_splash";
+    App::Application::Config()["AboutImage"] = "mstech_splash";
     App::Application::Config()["StartWorkbench"] = "PartDesignWorkbench";
     // App::Application::Config()["HiddenDockWindow"] = "Property editor";
     App::Application::Config()["SplashAlignment"] = "Bottom|Left";
-    App::Application::Config()["SplashTextColor"] = "#418FDE";
-    App::Application::Config()["SplashWarningColor"] = "#CA333B";
-    App::Application::Config()["SplashInfoColor"] = "#212529";
-    App::Application::Config()["SplashInfoPosition"] = "6,75";
-    App::Application::Config()["DesktopFileName"] = "org.freecad.FreeCAD";
+    App::Application::Config()["SplashTextColor"] = "#C9D6EA";
+    App::Application::Config()["SplashWarningColor"] = "#FFB300";
+    App::Application::Config()["SplashInfoColor"] = "#64B5F6";
+    // The wordmark is part of the splash image; only the version line is drawn on top of it,
+    // at (x + 235, y - 7), i.e. bottom right of the 900x450 image.
+    App::Application::Config()["SplashInfoExeName"] = "";
+    App::Application::Config()["SplashInfoVersion"] = "Sürüm 0.1 · geliştirme";
+    App::Application::Config()["SplashInfoPosition"] = "395,430";
+    App::Application::Config()["DesktopFileName"] = "org.mstech.AiCAD";
+    App::Application::Config()["NavigationStyle"] = "Gui::SolidWorksNavigationStyle";
+    // Default settings for the very first start (theme, navigation, performance)
+    App::Application::Config()["UserParameterTemplate"] = "Mod/MSTech/Ayarlar/MSTech-varsayilan.cfg";
 
     try {
         // Init phase ===========================================================

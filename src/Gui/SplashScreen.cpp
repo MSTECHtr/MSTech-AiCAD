@@ -366,6 +366,10 @@ QPixmap SplashScreen::splashImage()
             splash_image = defaultSplashImage();
             usingDefaultSplash = !splash_image.isNull();
         }
+        else if (splash_path == "mstech_splash") {
+            // BitmapFactory renders SVGs at icon size; render the splash at its full size
+            splash_image = BitmapFactory().pixmapFromSvg(":/icons/mstech_splash.svg", QSizeF(900.0, 450.0));
+        }
         else {
             splash_image = Gui::BitmapFactory().pixmap(splash_path.c_str());
         }

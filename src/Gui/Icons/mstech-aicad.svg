@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MSTech Ai-CAD uygulama simgesi: izometrik küp (CAD) + yapay zekâ kıvılcımı -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="arkaplan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E88E5"/>
+      <stop offset="1" stop-color="#0B3A86"/>
+    </linearGradient>
+    <linearGradient id="kivilcim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD54F"/>
+      <stop offset="1" stop-color="#FF9800"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#arkaplan)"/>
+  <!-- küp yüzeyleri -->
+  <path d="M120 62 L188 101 L120 140 L52 101 Z" fill="#FFFFFF"/>
+  <path d="M52 101 L120 140 L120 218 L52 179 Z" fill="#FFFFFF" fill-opacity="0.78"/>
+  <path d="M120 140 L188 101 L188 179 L120 218 Z" fill="#FFFFFF" fill-opacity="0.52"/>
+  <!-- küp kenarları -->
+  <path d="M120 62 L188 101 L188 179 L120 218 L52 179 L52 101 Z M52 101 L120 140 L188 101 M120 140 L120 218"
+        fill="none" stroke="#0B3A86" stroke-width="5" stroke-linejoin="round"/>
+  <!-- yapay zekâ kıvılcımı -->
+  <path d="M204 26 Q208 50 232 54 Q208 58 204 82 Q200 58 176 54 Q200 50 204 26 Z" fill="url(#kivilcim)"/>
+  <circle cx="226" cy="90" r="7" fill="#FFD54F"/>
+</svg>

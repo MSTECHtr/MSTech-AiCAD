@@ -42,6 +42,10 @@ if(BUILD_MATERIAL)
   add_subdirectory(Material)
 endif(BUILD_MATERIAL)
 
+if(BUILD_GUI)
+  add_subdirectory(MSTech)
+endif(BUILD_GUI)
+
 if(BUILD_MESH)
   add_subdirectory(Mesh)
 endif(BUILD_MESH)
