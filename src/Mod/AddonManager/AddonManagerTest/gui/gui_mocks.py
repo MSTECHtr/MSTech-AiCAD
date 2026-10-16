@@ -1,0 +1,241 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# SPDX-FileCopyrightText: 2022 FreeCAD Project Association
+# SPDX-FileNotice: Part of the AddonManager.
+
+################################################################################
+#                                                                              #
+#   This addon is free software: you can redistribute it and/or modify         #
+#   it under the terms of the GNU Lesser General Public License as             #
+#   published by the Free Software Foundation, either version 2.1              #
+#   of the License, or (at your option) any later version.                     #
+#                                                                              #
+#   This addon is distributed in the hope that it will be useful,              #
+#   but WITHOUT ANY WARRANTY; without even the implied warranty                #
+#   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.                    #
+#   See the GNU Lesser General Public License for more details.                #
+#                                                                              #
+#   You should have received a copy of the GNU Lesser General Public           #
+#   License along with this addon. If not, see https://www.gnu.org/licenses    #
+#                                                                              #
+################################################################################
+
+import sys
+from typing import Optional
+
+try:
+    from PySide import QtCore, QtWidgets
+except ImportError:
+    try:
+        from PySide6 import QtCore, QtWidgets
+    except ImportError:
+        from PySide2 import QtCore, QtWidgets
+
+sys.path.append("../../")  # For running in standalone mode during testing
+
+from AddonManagerTest.app.mocks import SignalCatcher
+
+
+class DialogInteractor(QtCore.QObject):
+    """Takes the title of the dialog and a callable. The callable is passed the widget
+    we found and can do whatever it wants to it. Whatever it does should eventually
+    close the dialog, however."""
+
+    def __init__(self, dialog_to_watch_for, interaction):
+        super().__init__()
+
+        # Status variables for tests to check:
+        self.dialog_found = False
+        self.has_run = False
+        self.button_found = False
+        self.interaction = interaction
+
+        self.dialog_to_watch_for = dialog_to_watch_for
+
+        self.execution_counter = 0
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.run)
+        self.timer.start(
+            1
+        )  # At 10 this occasionally left open dialogs; less than 1 produced failed tests
+
+    @staticmethod
+    def iterate_widgets(widget: QtWidgets.QWidget):
+        yield widget
+        for child in widget.findChildren(QtWidgets.QWidget):
+            yield from DialogInteractor.iterate_widgets(child)
+
+    def run(self):
+        for top_widget in QtWidgets.QApplication.topLevelWidgets():
+            for widget in DialogInteractor.iterate_widgets(top_widget):
+                if widget and self._dialog_matches(widget):
+                    # Found the widget we are looking for: now try to run the interaction
+                    if self.interaction is not None and callable(self.interaction):
+                        self.interaction(widget)
+                    self.dialog_found = True
+                    self.timer.stop()
+
+        self.has_run = True
+        self.execution_counter += 1
+        if self.execution_counter > 100:
+            print("Stopped timer after 100 iterations")
+            self.timer.stop()
+
+    def _dialog_matches(self, widget) -> bool:
+        # Is this the widget we are looking for?
+        if widget.objectName() == self.dialog_to_watch_for:
+            return True
+        return False
+
+
+class DialogWatcher(DialogInteractor):
+    """Examine the running GUI and look for a modal dialog with a given title, containing a button
+    with a role. Click that button, which is expected to close the dialog. Generally run on
+    a one-shot QTimer to allow the dialog time to open up. If the specified dialog is found, but
+    it does not contain the expected button, button_found will be false, and the dialog will be
+    closed with a reject() slot."""
+
+    def __init__(self, dialog_to_watch_for, button=QtWidgets.QDialogButtonBox.NoButton):
+        super().__init__(dialog_to_watch_for, self.click_button)
+        if button != QtWidgets.QDialogButtonBox.NoButton:
+            self.button = button
+        else:
+            self.button = QtWidgets.QDialogButtonBox.Cancel
+
+    def click_button(self, widget):
+        button_boxes = widget.findChildren(QtWidgets.QDialogButtonBox)
+        if len(button_boxes) == 1:  # There should be one, and only one
+            button_to_click = button_boxes[0].button(self.button)
+            if button_to_click:
+                self.button_found = True
+                button_to_click.click()
+            else:
+                widget.reject()
+        else:
+            widget.reject()
+
+
+class FakeWorker:
+    def __init__(self):
+        self.called = False
+        self.should_continue = True
+
+    def work(self):
+        while self.should_continue:
+            QtCore.QCoreApplication.processEvents(QtCore.QEventLoop.AllEvents, 100)
+
+    def stop(self):
+        self.should_continue = False
+
+
+class MockThread:
+    def wait(self):
+        pass
+
+    def isRunning(self):
+        return False
+
+
+class AsynchronousMonitor:
+    """Watch for a signal to be emitted for at most some given number of milliseconds"""
+
+    def __init__(self, signal):
+        self.signal = signal
+        self.signal_catcher = SignalCatcher()
+        self.signal.connect(self.signal_catcher.catch_signal)
+        self.kill_timer = QtCore.QTimer()
+        self.kill_timer.setSingleShot(True)
+        self.kill_timer.timeout.connect(self.signal_catcher.die)
+
+    def wait_for_at_most(self, max_wait_millis) -> None:
+        self.kill_timer.setInterval(max_wait_millis)
+        self.kill_timer.start()
+        while not self.signal_catcher.caught and not self.signal_catcher.killed:
+            QtCore.QCoreApplication.processEvents(QtCore.QEventLoop.AllEvents, 10)
+        self.kill_timer.stop()
+
+    def good(self) -> bool:
+        return self.signal_catcher.caught and not self.signal_catcher.killed
+
+
+class MockNetworkManagerGuiUp:
+    """A mock network manager that behaves roughly like the real thing but never does any network
+    or filesystem access and can simulate various failure scenarios. Uses real Qt signals and can
+    be used across threads. Requires a running event loop. Designed to allow UI evaluation by
+    taking real wall-clock time to complete events, or to speed up testing by using very short
+    timers to simulate network requests."""
+
+    completed = QtCore.Signal(int, int, QtCore.QByteArray)
+    content_length = QtCore.Signal(int, int, int)
+    progress_made = QtCore.Signal(int, int, int)
+    progress_complete = QtCore.Signal(int, int, str)
+
+    def __init__(self, wall_clock_ms: int = 1, simulate_failure: bool = False):
+        pass
+
+    def query_download_size(self, url: str, timeout_ms: int = 30000):
+        pass
+
+    def submit_unmonitored_get(
+        self,
+        url: str,
+        timeout_ms: int = 30000,
+    ) -> int:
+        pass
+
+    def submit_monitored_get(
+        self,
+        url: str,
+        timeout_ms: int = 30000,
+    ) -> int:
+        pass
+
+    def blocking_get(
+        self,
+        url: str,
+        timeout_ms: int = 30000,
+    ) -> Optional[QtCore.QByteArray]:
+        pass
+
+    def abort_all(self):
+        pass
+
+    def abort(self, index: int):
+        pass
+
+
+class FakeNetworkManager(QtCore.QObject):
+    """A stand-in for the NetworkManager singleton that never touches the network.
+
+    Requests are recorded and answered by whichever thread calls answer_pending_requests(), so a
+    test decides when a worker sees its response. The completed signal is a real Qt signal, and is
+    therefore delivered across threads exactly as the real one is."""
+
+    completed = QtCore.Signal(int, int, QtCore.QByteArray)
+
+    def __init__(self, status: int = 200, response: bytes = b"OK"):
+        super().__init__()
+        self.status = status
+        self.response = response
+        self.requested_urls = []
+        self.pending_requests = []
+        self.aborted_requests = []
+        self.next_index = 0
+
+    def submit_unmonitored_get(
+        self, url: str, timeout_ms: int = 30000, disable_cache: bool = False
+    ) -> int:
+        index = self.next_index
+        self.next_index += 1
+        self.requested_urls.append(url)
+        self.pending_requests.append(index)
+        return index
+
+    def answer_pending_requests(self) -> None:
+        """Complete every request that has been submitted and not yet answered or aborted."""
+        while self.pending_requests:
+            index = self.pending_requests.pop(0)
+            self.completed.emit(index, self.status, QtCore.QByteArray(self.response))
+
+    def abort(self, index: int) -> None:
+        self.aborted_requests.append(index)
+        self.pending_requests = [pending for pending in self.pending_requests if pending != index]
