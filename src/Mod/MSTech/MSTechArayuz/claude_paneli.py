@@ -38,11 +38,22 @@ Modelleme:
 - freecad_python ile FreeCAD Python API'sini kullan. Birimler mm. Her çağrıda TEK bir özellik ekle
   (bir eskiz, bir pad, bir delik...); hepsini tek seferde yapma ki kullanıcı adımları görsün.
 - Parametrik parçalar için PartDesign: Body -> Sketch (kısıtlamalı) -> Pad / Pocket / Revolution / Fillet.
+  Bu FreeCAD sürümünün API notları: eskizi bağlamak için `sk.AttachmentSupport = (duzlem, [""])` ve
+  `sk.MapMode = "FlatFace"` (eski `Support` özelliği yok); gövde düzlemleri
+  `[f for f in body.Origin.OriginFeatures if f.Role == "XY_Plane"][0]` (XZ_Plane, YZ_Plane) ile bulunur.
   Profiller (kare, boru, sigma, C, U, I) için kapalı eskiz çizip uzat. Hızlı katılar için Part da olur.
 - Makine/montajda her parçayı ayrı gövde yap, anlamlı Label ver, doğru konumla.
 - Belge yoksa App.newDocument ile oluştur. Var olan nesneleri silmeden önce emin ol.
 - Adımları belge_ozeti ile doğrula; önemli aşamalarda goruntu_al ile bak. Hata alırsan düzelt.
-- Dosya sistemine, ağa veya FreeCAD dışındaki şeylere kullanıcı açıkça istemedikçe dokunma."""
+- Dosya sistemine kullanıcı açıkça istemedikçe yazma.
+
+Görseller ve internet:
+- Kullanıcı bir fotoğraf, çizim, eskiz veya ekran görüntüsü eklerse (dosya yolu mesajda verilir, Read ile
+  bak) onu dikkatle incele ve modelle: oranları görselden çıkar, verilmeyen ölçüleri makul tahmin et ve
+  tahminlerini söyle. Bir nesnenin görünüşünden kullanıcının kendi tasarımı için geometri çıkarmak normal
+  bir mühendislik işidir; logo/marka gibi özel bir sınırlama yoksa gereksiz yere çekinme, işi yap.
+- Standart ölçüler, katalog değerleri, malzeme bilgisi gerekirse WebSearch/WebFetch ile araştır.
+  Kullanıcıya bir sayfayı göstermek istersen tarayicida_ac aracını kullan."""
 
 
 def _param():
@@ -74,7 +85,10 @@ def _motor():
     return "api" if _api_anahtari() else "claude_code"
 
 
-CC_ARACLARI = "mcp__mstech__freecad_python,mcp__mstech__belge_ozeti,mcp__mstech__goruntu_al"
+CC_ARACLARI = ("mcp__mstech__freecad_python,mcp__mstech__belge_ozeti,mcp__mstech__goruntu_al,"
+               "mcp__mstech__tarayicida_ac,Read,WebSearch,WebFetch")
+CC_YERLESIK = "Read,WebSearch,WebFetch"  # görsel okuma ve internet; dosya yazma/terminal kapalı
+GORSEL_UZANTILARI = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 
 
 def _giris_yapildi_mi():
@@ -109,7 +123,10 @@ class _Isci(QtCore.QObject):
                 model=_param().GetString("ClaudeModel", MODEL),
                 max_tokens=16000,
                 system=SISTEM,
-                tools=claude_araclari.ARACLAR,
+                tools=claude_araclari.ARACLAR + [
+                    {"type": "web_search_20260209", "name": "web_search"},
+                    {"type": "web_fetch_20260209", "name": "web_fetch"},
+                ],
                 messages=mesajlar,
                 output_config={"effort": _param().GetString("ClaudeEfor", "medium")},
                 cache_control={"type": "ephemeral"},
@@ -133,6 +150,23 @@ class _Isci(QtCore.QObject):
 
 class _Giris(QtWidgets.QPlainTextEdit):
     gonder = QtCore.Signal()
+    gorsel = QtCore.Signal(object)  # QImage ya da dosya yolu
+
+    def canInsertFromMimeData(self, kaynak):
+        return kaynak.hasImage() or kaynak.hasUrls() or super().canInsertFromMimeData(kaynak)
+
+    def insertFromMimeData(self, kaynak):
+        if kaynak.hasImage():
+            self.gorsel.emit(QtGui.QImage(kaynak.imageData()))
+            return
+        if kaynak.hasUrls():
+            yollar = [u.toLocalFile() for u in kaynak.urls() if u.isLocalFile()]
+            gorseller = [y for y in yollar if y.lower().endswith(GORSEL_UZANTILARI)]
+            for y in gorseller:
+                self.gorsel.emit(y)
+            if gorseller:
+                return
+        super().insertFromMimeData(kaynak)
 
     def keyPressEvent(self, olay):
         if olay.key() in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter) and not (
@@ -163,6 +197,16 @@ class ClaudePaneli(QtWidgets.QWidget):
         )
         self._giris.setFixedHeight(70)
         self._giris.gonder.connect(self._gonder)
+        self._giris.gorsel.connect(self._gorsel_ekle)
+        self._ekler = []
+        self._ek_etiketi = QtWidgets.QLabel()
+        self._ek_etiketi.setVisible(False)
+        ek_dugmesi = QtWidgets.QToolButton()
+        ek_dugmesi.setText("📎")
+        ek_dugmesi.setToolTip("Görsel ekle (fotoğraf, çizim, ekran görüntüsü). Ctrl+V ile yapıştırabilir "
+                              "ya da sürükleyip bırakabilirsin.")
+        ek_dugmesi.clicked.connect(self._gorsel_sec)
+        self._ek_dugmesi = ek_dugmesi
 
         self._gonder_dugmesi = QtWidgets.QPushButton("Gönder")
         self._gonder_dugmesi.setDefault(True)
@@ -204,6 +248,8 @@ class ClaudePaneli(QtWidgets.QWidget):
         ust.addWidget(self._cikis_dugmesi)
         ust.addWidget(anahtar)
         alt = QtWidgets.QHBoxLayout()
+        alt.addWidget(self._ek_dugmesi)
+        alt.addWidget(self._ek_etiketi)
         alt.addWidget(self._onay)
         alt.addStretch(1)
         alt.addWidget(self._durdur_dugmesi)
@@ -255,8 +301,14 @@ class ClaudePaneli(QtWidgets.QWidget):
         """Araç sonucundan yeni eklenen parçaları ve hataları gösterir."""
         if not isinstance(metin, str):
             return
+        if metin.lstrip().startswith("{"):
+            try:  # MCP sonucu {"result": "..."} içinde gelebilir
+                metin = json.loads(metin).get("result", metin)
+            except (ValueError, AttributeError):
+                pass
         if "HATA" in metin[:200]:
-            ilk = next((s for s in metin.splitlines() if "Error" in s or "HATA" in s), "Hata")
+            satirlar = [s.strip() for s in metin.splitlines() if s.strip()]
+            ilk = next((s for s in reversed(satirlar) if "Error" in s or "Exception" in s), "Hata")
             self._ekle_html(f"<span style='color:#B85C00'>⚠ {html.escape(ilk[:160])}</span>")
         for satir in metin.splitlines():
             if not satir.startswith("- "):
@@ -430,10 +482,50 @@ class ClaudePaneli(QtWidgets.QWidget):
             self._ekle_html(f"<p style='color:#C62828'>Giriş tamamlanamadı: {html.escape(cikti[-300:])}</p>")
         self._giris_durumunu_goster()
 
+    # --- görsel ekleri ----------------------------------------------------------------
+
+    def _ek_klasoru(self):
+        klasor = os.path.join(App.getUserAppDataDir(), "ClaudeCode", "ekler")
+        os.makedirs(klasor, exist_ok=True)
+        return klasor
+
+    def _gorsel_sec(self):
+        yollar, _ = QtWidgets.QFileDialog.getOpenFileNames(
+            self, "Görsel ekle", os.path.expanduser("~"),
+            "Görseller (*.png *.jpg *.jpeg *.webp *.gif *.bmp)")
+        for yol in yollar:
+            self._gorsel_ekle(yol)
+
+    def _gorsel_ekle(self, kaynak):
+        """Görseli ek klasörüne PNG olarak kaydeder (çok büyükse küçültür)."""
+        resim = QtGui.QImage(kaynak) if isinstance(kaynak, str) else kaynak
+        if resim.isNull():
+            return
+        if max(resim.width(), resim.height()) > 1800:
+            resim = resim.scaled(1800, 1800, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+        yol = os.path.join(self._ek_klasoru(),
+                           f"ek_{QtCore.QDateTime.currentDateTime().toString('yyyyMMdd_hhmmss_zzz')}.png")
+        resim.save(yol)
+        self._ekler.append(yol)
+        self._ek_etiketi.setText(f"📎 {len(self._ekler)} görsel")
+        self._ek_etiketi.setVisible(True)
+
+    def _ekleri_goster(self):
+        for yol in self._ekler:
+            url = QtCore.QUrl.fromLocalFile(yol).toString()
+            self._ekle_html(f"<img src='{url}' height='120'>")
+
+    def _ekleri_al(self):
+        ekler, self._ekler = self._ekler, []
+        self._ek_etiketi.setVisible(False)
+        return ekler
+
     def _gonder(self):
         metin = self._giris.toPlainText().strip()
-        if not metin or self._calisiyor:
+        if self._calisiyor or not (metin or self._ekler):
             return
+        if not metin:
+            metin = "Ekteki görseldeki parçayı modelle."
         if _motor() == "claude_code":
             if not _claude_yolu() or getattr(self, "_cc_giris", None) is False:
                 self._ekle_html("<p style='color:#B85C00'>Önce sağ üstteki düğmeyle Claude Code'u "
@@ -441,6 +533,10 @@ class ClaudePaneli(QtWidgets.QWidget):
                 return
             self._giris.clear()
             self._kullanici_mesaji(metin)
+            self._ekleri_goster()
+            ekler = self._ekleri_al()
+            if ekler:
+                metin += "\n\nEkli görseller (Read aracıyla bak):\n" + "\n".join(ekler)
             self._cc_gonder(metin)
             return
         if not _api_anahtari() and not _giris_yapildi_mi():
@@ -449,12 +545,21 @@ class ClaudePaneli(QtWidgets.QWidget):
             return
         self._giris.clear()
         self._kullanici_mesaji(metin)
-        blok = {"type": "text", "text": metin}
+        self._ekleri_goster()
+        import base64
+
+        bloklar = []
+        for yol in self._ekleri_al():
+            with open(yol, "rb") as f:
+                veri = base64.standard_b64encode(f.read()).decode("ascii")
+            bloklar.append({"type": "image",
+                            "source": {"type": "base64", "media_type": "image/png", "data": veri}})
+        bloklar.append({"type": "text", "text": metin})
         if self._mesajlar and self._mesajlar[-1]["role"] == "user":
             # yarıda durdurulmuş bir turun araç sonuçlarına ekle
-            self._mesajlar[-1]["content"].append(blok)
+            self._mesajlar[-1]["content"].extend(bloklar)
         else:
-            self._mesajlar.append({"role": "user", "content": [blok]})
+            self._mesajlar.append({"role": "user", "content": bloklar})
         self._durdur = False
         self._tur = 0
         self._istek()
@@ -493,7 +598,8 @@ class ClaudePaneli(QtWidgets.QWidget):
             json.dump(ayar, f)
 
         argumanlar = ["-p", "--output-format", "stream-json", "--verbose",
-                      "--tools", "", "--mcp-config", ayar_dosyasi, "--strict-mcp-config",
+                      "--tools", CC_YERLESIK, "--mcp-config", ayar_dosyasi, "--strict-mcp-config",
+                      "--add-dir", self._ek_klasoru(),
                       "--allowedTools", CC_ARACLARI, "--append-system-prompt", SISTEM]
         if self._cc_oturum:
             argumanlar += ["--resume", self._cc_oturum]

@@ -71,6 +71,19 @@ ARACLAR = [
     },
 ]
 
+ARACLAR.append({
+    "name": "tarayicida_ac",
+    "description": "Kullanıcının bilgisayarında varsayılan tarayıcıda (ör. Firefox) bir bağlantı açar; "
+                   "katalog, standart, video veya kaynak sayfasını kullanıcıya göstermek için.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"url": {"type": "string", "description": "Açılacak http(s) adresi."}},
+        "required": ["url"],
+        "additionalProperties": False,
+    },
+    "strict": True,
+})
+
 _YONLER = {
     "izometrik": "viewIsometric",
     "on": "viewFront",
@@ -198,6 +211,14 @@ def calistir(ad, girdi):
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": veri}},
                 {"type": "text", "text": "3B görünümün güncel görüntüsü."},
             ], False
+        if ad == "tarayicida_ac":
+            from PySide import QtCore, QtGui
+
+            url = str(girdi.get("url", ""))
+            if not url.startswith(("http://", "https://")):
+                return "Yalnızca http(s) bağlantıları açılabilir.", True
+            acildi = QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
+            return ("Tarayıcıda açıldı: " + url) if acildi else "Tarayıcı açılamadı.", not acildi
         return f"Bilinmeyen araç: {ad}", True
     except Exception:
         return "Araç hatası:\n" + traceback.format_exc(limit=4), True

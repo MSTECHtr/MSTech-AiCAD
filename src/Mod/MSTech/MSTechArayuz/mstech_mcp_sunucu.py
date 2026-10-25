@@ -59,5 +59,12 @@ def goruntu_al(yon: str = "izometrik", sigdir: bool = True):
     return Image(data=base64.standard_b64decode(icerik[0]["source"]["data"]), format="jpeg")
 
 
+@sunucu.tool()
+def tarayicida_ac(url: str) -> str:
+    """Kullanıcının bilgisayarında varsayılan tarayıcıda (ör. Firefox) bir bağlantı açar;
+    katalog, standart, video veya kaynak sayfasını kullanıcıya göstermek için. url: http(s) adresi."""
+    return _cagir("tarayicida_ac", {"url": url})[0]
+
+
 if __name__ == "__main__":
     sunucu.run()
